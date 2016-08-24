@@ -98,7 +98,18 @@ class LetschatNotifcationPlugin(Component):
                 text += u' by {}'.format(values['author'])
             text += u'>>\n' + comment + u'\n'
 
-        text += u'Ticket URL: {url}'.format(**values)
+        text += u'Ticket URL: {url}\n'.format(**values)
+        if ('cc' in values):
+            cc = u''
+            for mentor in values['cc'].split(', '):
+                if mentor.lower() != values.get('author').lower():
+                    if len(cc) == 0:
+                        cc += mentor
+                    else:
+                        cc = ', '.join([cc, mentor])
+            
+            cc = re.sub(r'([0-9a-z]+)', r'@\1', cc)
+            text += u'Cc: {}\n'.format(cc)
 
         #room = self.detect_room(values) or self.ticket_room
         room = self.ticket_room
