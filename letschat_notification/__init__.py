@@ -3,47 +3,43 @@
 import json
 import requests
 import re
+import difflib
+
 from trac.core import Component, implements
 from trac.config import ListOption, Option
 from trac.ticket.api import ITicketChangeListener
 from trac.wiki.api import IWikiChangeListener
 
-from tracfullblog.api import IBlogChangeListener
-from tracfullblog.model import BlogPost, BlogComment
+try:
+    from tracfullblog.api import IBlogChangeListener
+    from tracfullblog.model import BlogPost, BlogComment
+except:
+    IBlogChangeListener = None
 
 
-def prepare_ticket_values(ticket):
-    values = ticket.values.copy()
-    values['id'] = '#' + str(ticket.id)
-    values['url'] = ticket.env.abs_href.ticket(ticket.id)
-    values['project'] = ticket.env.project_name.encode('utf-8').strip()
-    return values
+class LetschatTicketNotifcationPlugin(Component):
+    """
+    """
 
-
-class LetschatNotifcationPlugin(Component):
     implements(ITicketChangeListener)
-    implements(IWikiChangeListener)
-    implements(IBlogChangeListener)
 
     webapi = Option('letschat', 'webapi', '',
-                     doc="REST-like API for let's chat")
+                    doc="REST-like API for let's chat")
     token = Option('letschat', 'token', '',
                    doc="Authentication Token for let's chat")
-    ticket_room = Option('letschat', 'ticket_room', '',
-                  doc="room name on let's chat")
-    ticket_fields = Option('letschat', 'ticket_fields', 'type,priority,component,resolution',
-                    doc="Fields that should be reported")
-    ignore_tickets = ListOption('letschat', 'ignore_tickets', '',
-                                doc="Comma separated list of tickets that should be ignored")
-    wiki_room = Option('letschat', 'wiki_room', '',
-                       doc="room name on let's chat")
-    blog_room = Option('letschat', 'blog_room', '',
-                       doc="room name on let's chat")
+    room = Option('letschat', 'ticket_room', '',
+                         doc="room name on let's chat")
+    fields = Option('letschat', 'ticket_fields', 'type,priority,component,resolution',
+                           doc="Fields that should be reported")
 
-    def __init__(self, *args, **kwargs):
-        super(Component, self).__init__(*args, **kwargs)
+    def _prepare_ticket_values(self, ticket):
+        values = ticket.values.copy()
+        values['id'] = '#' + str(ticket.id)
+        values['url'] = ticket.env.abs_href.ticket(ticket.id)
+        values['project'] = ticket.env.project_name.encode('utf-8').strip()
+        return values
 
-    def ticket_notify(self, action, values):
+    def _ticket_notify(self, action, values):
         values['author'] = values['author'].title()
         values['type'] = values['type'].title()
 
@@ -111,11 +107,14 @@ class LetschatNotifcationPlugin(Component):
             cc = re.sub(r'([0-9a-z]+)', r'@\1', cc)
             text += u'Cc: {}\n'.format(cc)
 
-        #room = self.detect_room(values) or self.ticket_room
-        room = self.ticket_room
+        #room = self.detect_room(values) or self.room
+        room = self.room
 
         try:
-            requests.post(self.webapi + '/' + room + '/messages', data={'text': text}, auth=(self.token, 'dummy'))
+            requests.post(self.webapi + '/' + room + '/messages',
+                          data = { 'text': text },
+                          auth = ( self.token, 'dummy' ),
+                          timeout = 1.0)
         except requests.exceptions.RequestException:
             return False
         return True
@@ -132,9 +131,9 @@ class LetschatNotifcationPlugin(Component):
         return None
 
     def ticket_created(self, ticket):
-        values = prepare_ticket_values(ticket)
+        values = self._prepare_ticket_values(ticket)
         values['author'] = values['reporter']
-        fields = self.ticket_fields.split(',')
+        fields = self.fields.split(',')
         attrib = {}
 
         for field in fields:
@@ -143,12 +142,10 @@ class LetschatNotifcationPlugin(Component):
 
         values['attrib'] = attrib
 
-        self.ticket_notify('new', values)
+        self._ticket_notify('new', values)
 
     def ticket_changed(self, ticket, comment, author, old_values):
-        if str(ticket.id) in self.ignore_tickets:
-            return
-        values = prepare_ticket_values(ticket)
+        values = self._prepare_ticket_values(ticket)
 
         if values['changetime']:
             cnum = ticket.get_comment_number(values['changetime'])
@@ -171,7 +168,7 @@ class LetschatNotifcationPlugin(Component):
         if 'description' not in old_values.keys():
             del values['description']
 
-        fields = self.ticket_fields.split(',')
+        fields = self.fields.split(',')
         changes = {}
 
         for field in fields:
@@ -180,13 +177,13 @@ class LetschatNotifcationPlugin(Component):
 
         values['changes'] = changes
 
-        self.ticket_notify('edit', values)
+        self._ticket_notify('edit', values)
 
     def ticket_deleted(self, ticket):
         pass
 
     def ticket_comment_modified(self, ticket, cdate, author, comment, old_comment):
-        values = prepare_ticket_values(ticket)
+        values = self._prepare_ticket_values(ticket)
         values['author'] = author or 'unknown'
         cnum = ticket.get_comment_number(cdate)
         if cnum is not None:
@@ -205,9 +202,22 @@ class LetschatNotifcationPlugin(Component):
 
         values['changes'] = changes
 
-        self.ticket_notify('edit', values)
+        self._ticket_notify('edit', values)
 
-    def prepare_wiki_values(self, page):
+class LetschatWikiNotifcation(Component):
+    """
+    """
+
+    implements(IWikiChangeListener)
+
+    webapi = Option('letschat', 'webapi', '',
+                    doc="REST-like API for let's chat")
+    token = Option('letschat', 'token', '',
+                   doc="Authentication Token for let's chat")
+    room = Option('letschat', 'wiki_room', '',
+                  doc="room name on let's chat")
+
+    def _prepare_wiki_values(self, page):
         values = {}
         values['name'] = page.name
         values['url'] = self.env.abs_href.wiki(page.name)
@@ -243,17 +253,20 @@ class LetschatNotifcationPlugin(Component):
 
         text += u'Wiki URL: {url}'.format(**values)
 
-        room = self.wiki_room
+        room = self.room
 
         try:
-            requests.post(self.webapi + '/' + room + '/messages', data={'text': text}, auth=(self.token, 'dummy'))
+            requests.post(self.webapi + '/' + room + '/messages',
+                          data = { 'text': text },
+                          auth = ( self.token, 'dummy' ),
+                          timeout = 1.0)
         except requests.exceptions.RequestException:
             return False
         return True
 
     def wiki_page_added(self, page):
         version, time, author, comment, ipnr = page.get_history().next()
-        values = self.prepare_wiki_values(page)
+        values = self._prepare_wiki_values(page)
         values['author'] = author
         if (len(comment) > 0):
             values['comment'] = comment
@@ -261,7 +274,7 @@ class LetschatNotifcationPlugin(Component):
         self.wiki_notify('new', values)
 
     def wiki_page_changed(self, page, version, time, comment, author, ipnr):
-        values = self.prepare_wiki_values(page)
+        values = self._prepare_wiki_values(page)
         values['author'] = author
         if (len(comment) > 0):
             values['comment'] = comment
@@ -279,6 +292,20 @@ class LetschatNotifcationPlugin(Component):
 
     def wiki_page_renamed(self, page, old_name):
         pass
+
+class LetschatBlogNotifcation(Component):
+    """
+    """
+
+    if IBlogChangeListener:
+        implements(IBlogChangeListener)
+
+    webapi = Option('letschat', 'webapi', '',
+                    doc="REST-like API for let's chat")
+    token = Option('letschat', 'token', '',
+                   doc="Authentication Token for let's chat")
+    room = Option('letschat', 'blog_room', '',
+                  doc="room name on let's chat")
 
     def blog_notify(self, action, values):
         values['author'] = values['author'].title()
@@ -322,10 +349,13 @@ class LetschatNotifcationPlugin(Component):
 
         text += u'Blog URL: {url}'.format(**values)
 
-        room = self.blog_room
+        room = self.room
 
         try:
-            requests.post(self.webapi + '/' + room + '/messages', data={'text': text}, auth=(self.token, 'dummy'))
+            requests.post(self.webapi + '/' + room + '/messages',
+                          data = { 'text': text },
+                          auth = ( self.token, 'dummy' ),
+                          timeout = 1.0)
         except requests.exceptions.RequestException:
             return False
         return True
