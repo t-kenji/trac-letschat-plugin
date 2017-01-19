@@ -7,6 +7,7 @@ import difflib
 
 from trac.core import Component, implements
 from trac.config import ListOption, Option
+from trac.util.text import wrap
 from trac.ticket.api import ITicketChangeListener
 from trac.wiki.api import IWikiChangeListener
 
@@ -17,7 +18,18 @@ except:
     IBlogChangeListener = None
 
 
-class LetschatTicketNotifcationPlugin(Component):
+def diff_cleanup(gen):
+    for piece in gen:
+        if piece.startswith('---'):
+            continue
+        if piece.startswith('+++'):
+            continue
+        if piece.startswith('@@'):
+            yield '\n'
+        else:
+            yield piece
+
+class LetschatTicketNotifcationModule(Component):
     """
     """
 
@@ -70,7 +82,13 @@ class LetschatTicketNotifcationPlugin(Component):
             text += u'Changes (by {})\n'.format(values['author'])
             for k, v in values.get('changes', {}).items():
                 text += u' * ' + k.title() + u': '
-                text += u'{} ⇒ {}\n'.format(v[0], v[1]) if v[0] else u'{}\n'.format(v[1])
+                if k in ('description', 'comment'):
+                    text += u'see below\n'
+                else:
+                    if v[0]:
+                        text += u'{} -> {}\n'.format(v[0].replace('\r\n', '  '), v[1].replace('\r\n', ' '))
+                    else:
+                        text += u'{}\n'.format(v[1].replace('\r\n', ' '))
             add_author = True
 
         if 'description' in values:
@@ -81,6 +99,19 @@ class LetschatTicketNotifcationPlugin(Component):
                 description = description[:497] + ' ... ' + ' '.join(mensions)
             description = re.sub(r'({{{(#![a-z]+)*|}}})', '', description)
             text += u'<<Description>>\n' + description + u'\n'
+        else:
+            desc_changeset= values.get('changes', {}).get('description', ())
+            if len(desc_changeset) > 0:
+                desc_diff = '\n'.join(diff_cleanup(difflib.unified_diff(
+                        wrap(desc_changeset[0], cols = 80).split('\n'),
+                        wrap(desc_changeset[1], cols = 80).split('\n'),
+                        lineterm = '',n = 3
+                )))
+                if len(desc_diff) > 500:
+                    truncated = desc_diff[498:]
+                    mensions = re.findall(r'[ \t]@[0-9a-zA-Z]+', truncated)
+                    desc_diff = desc_diff[:497] + ' ... ' + ' '.join(mensions)
+                text += u'<<Description>>\n' + desc_diff[2:] + u'\n'
 
         if 'comment' in values:
             comment = values['comment']
@@ -93,6 +124,19 @@ class LetschatTicketNotifcationPlugin(Component):
             if not add_author:
                 text += u' by {}'.format(values['author'])
             text += u'>>\n' + comment + u'\n'
+        else:
+            comment_changeset= values.get('changes', {}).get('comment', ())
+            if len(comment_changeset) > 0:
+                comment_diff = '\n'.join(diff_cleanup(difflib.unified_diff(
+                        wrap(comment_changeset[0], cols = 80).split('\n'),
+                        wrap(comment_changeset[1], cols = 80).split('\n'),
+                        lineterm = '',n = 3
+                )))
+                if len(comment_diff) > 500:
+                    truncated = comment_diff[498:]
+                    mensions = re.findall(r'[ \t]@[0-9a-zA-Z]+', truncated)
+                    comment_diff = desc_diff[:497] + ' ... ' + ' '.join(mensions)
+                text += u'<<Comment>>\n' + comment_diff[2:] + u'\n'
 
         text += u'Ticket URL: {url}\n'.format(**values)
         if ('cc' in values):
@@ -153,10 +197,8 @@ class LetschatTicketNotifcationPlugin(Component):
                 values['url'] += '#comment:{}'.format(cnum)
 
         if comment:
-            # Ignore timesheet entries
-            if comment in ['Timesheet2Track', 'hamster sum added']:
-                return
             values['comment'] = comment
+
         values['author'] = author or 'unknown'
         if 'status' in old_values:
             if ticket.values.get('status') != old_values['status']:
@@ -165,8 +207,7 @@ class LetschatTicketNotifcationPlugin(Component):
                     values['new_status'] += ' [{}]'.format(ticket['resolution'])
                     del old_values['resolution']  # prevent this from appearing in changes
 
-        if 'description' not in old_values.keys():
-            del values['description']
+        del values['description']
 
         fields = self.fields.split(',')
         changes = {}
@@ -189,22 +230,16 @@ class LetschatTicketNotifcationPlugin(Component):
         if cnum is not None:
             values['url'] += '#comment:{}'.format(cnum)
 
-        values['comment'] = comment
         del values['description']
-        new_summary = comment
-        old_summary = old_comment
-        if len(new_summary) > 10:
-            new_summary = new_summary[:10] + '...'
-        if len(old_summary) > 10:
-            old_summary = old_summary[:10] + '...'
+
         changes = {}
-        changes['comment'] = (old_summary, new_summary)
+        changes['comment'] = ( old_comment, comment )
 
         values['changes'] = changes
 
         self._ticket_notify('edit', values)
 
-class LetschatWikiNotifcation(Component):
+class LetschatWikiNotifcationModule(Component):
     """
     """
 
@@ -293,7 +328,7 @@ class LetschatWikiNotifcation(Component):
     def wiki_page_renamed(self, page, old_name):
         pass
 
-class LetschatBlogNotifcation(Component):
+class LetschatBlogNotifcationModule(Component):
     """
     """
 
