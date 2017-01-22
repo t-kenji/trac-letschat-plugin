@@ -260,7 +260,7 @@ class LetschatWikiNotifcationModule(Component):
 
     def wiki_notify(self, action, values):
         text = ''
-        add_author = ('comment' not in values)
+        add_author = False
         if action == 'new':
             text += u'New '
             add_author = True
@@ -316,7 +316,9 @@ class LetschatWikiNotifcationModule(Component):
 
         changes = {}
         changes['version'] = version
-        changes['time'] = time
+        changes['changeset'] = self.env.abs_href.wiki(page.name, action='diff', version=version)
+        values['changes'] = changes
+
         self.wiki_notify('edit', values)
 
     def wiki_page_deleted(self, page):
