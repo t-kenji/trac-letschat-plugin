@@ -95,8 +95,8 @@ class LetschatTicketNotifcationModule(Component):
             description = values['description']
             if len(description) > 500:
                 truncated = description[498:]
-                mensions = re.findall(r'[ \t]@[0-9a-zA-Z]+', truncated)
-                description = description[:497] + ' ... ' + ' '.join(mensions)
+                mensions = re.findall(r'\s@[0-9a-zA-Z]+', truncated)
+                description = description[:497] + ' ... (truncated)' + ' '.join(mensions)
             description = re.sub(r'({{{(#![a-z]+)*|}}})', '', description)
             text += u'<<Description>>\n' + description + u'\n'
         else:
@@ -109,16 +109,16 @@ class LetschatTicketNotifcationModule(Component):
                 )))
                 if len(desc_diff) > 500:
                     truncated = desc_diff[498:]
-                    mensions = re.findall(r'[ \t]@[0-9a-zA-Z]+', truncated)
-                    desc_diff = desc_diff[:497] + ' ... ' + ' '.join(mensions)
+                    mensions = re.findall(r'\s@[0-9a-zA-Z]+', truncated)
+                    desc_diff = desc_diff[:497] + ' ... (truncated)' + ' '.join(mensions)
                 text += u'<<Description>>\n' + desc_diff[2:] + u'\n'
 
         if 'comment' in values:
             comment = values['comment']
             if len(comment) > 500:
                 truncated = comment[498:]
-                mensions = re.findall(r'[ \t]@[0-9a-zA-Z]+', truncated)
-                comment = comment[:497] + ' ... ' + ' '.join(mensions)
+                mensions = re.findall(r'\s@[0-9a-zA-Z]+', truncated)
+                comment = comment[:497] + ' ... (truncated)' + ' '.join(mensions)
             comment = re.sub(r'({{{(#![a-z]+)*|}}})', '', comment)
             text += u'<<Comment'
             if not add_author:
@@ -134,8 +134,8 @@ class LetschatTicketNotifcationModule(Component):
                 )))
                 if len(comment_diff) > 500:
                     truncated = comment_diff[498:]
-                    mensions = re.findall(r'[ \t]@[0-9a-zA-Z]+', truncated)
-                    comment_diff = desc_diff[:497] + ' ... ' + ' '.join(mensions)
+                    mensions = re.findall(r'\s@[0-9a-zA-Z]+', truncated)
+                    comment_diff = comment_diff[:497] + ' ... (truncated)' + ' '.join(mensions)
                 text += u'<<Comment>>\n' + comment_diff[2:] + u'\n'
 
         text += u'Ticket URL: {url}\n'.format(**values)
