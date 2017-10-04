@@ -7,6 +7,7 @@ import difflib
 
 from trac.core import Component, implements
 from trac.config import ListOption, Option
+from trac.util.datefmt import format_date, format_datetime, get_timezone
 from trac.util.text import wrap
 from trac.ticket.api import ITicketChangeListener
 from trac.wiki.api import IWikiChangeListener
@@ -19,6 +20,9 @@ except:
 
 
 def diff_cleanup(gen):
+    """
+    """
+
     for piece in gen:
         if piece.startswith('---'):
             continue
@@ -50,6 +54,15 @@ class LetschatTicketNotifcationModule(Component):
         values['url'] = ticket.env.abs_href.ticket(ticket.id)
         values['project'] = ticket.env.project_name.encode('utf-8').strip()
         return values
+
+    def _format_date_field(self, value, date_type, date_format):
+        tzinfo = get_timezone(self.config.get('trac', 'default_timezone'))
+        if date_type == 'date':
+            return format_date(value, tzinfo=tzinfo, format=date_format) \
+                   if value else u''
+        else:
+            return format_datetime(value, tzinfo=tzinfo, format=date_format) \
+                   if value else u''
 
     def _ticket_notify(self, action, values):
         values['author'] = values['author'].title()
@@ -85,10 +98,12 @@ class LetschatTicketNotifcationModule(Component):
                 if k in ('description', 'comment'):
                     text += u'see below\n'
                 else:
-                    if v[0]:
-                        text += u'{} -> {}\n'.format(v[0].replace('\r\n', '  '), v[1].replace('\r\n', ' '))
+                    v0 = v[0] if v[0] else u''
+                    v1 = v[1] if v[1] else u'Deleted'
+                    if v0:
+                        text += u'{} -> {}\n'.format(v0, v1)
                     else:
-                        text += u'{}\n'.format(v[1].replace('\r\n', ' '))
+                        text += u'{}\n'.format(v1)
             add_author = True
 
         if 'description' in values:
@@ -182,7 +197,12 @@ class LetschatTicketNotifcationModule(Component):
 
         for field in fields:
             if ticket[field] != '':
-                attrib[field] = ticket[field]
+                if field in ticket.time_fields:
+                    date_type = ticket.fields.by_name(field).get('format')
+                    val = self._format_date_field(ticket[field], date_type, '%Y/%m/%d')
+                else:
+                    val = ticket[field]
+                attrib[field] = val
 
         values['attrib'] = attrib
 
@@ -214,7 +234,14 @@ class LetschatTicketNotifcationModule(Component):
 
         for field in fields:
             if field in old_values:
-                changes[field] = (old_values[field], ticket[field])
+                if field in ticket.time_fields:
+                    date_type = ticket.fields.by_name(field).get('format')
+                    old_val = self._format_date_field(old_values[field], date_type, '%Y/%m/%d')
+                    new_val = self._format_date_field(ticket[field], date_type, '%Y/%m/%d')
+                else:
+                    old_val = old_values[field]
+                    new_val = ticket[field]
+                changes[field] = (old_val, new_val)
 
         values['changes'] = changes
 
