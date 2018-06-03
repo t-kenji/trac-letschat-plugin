@@ -9,7 +9,7 @@ from trac.core import Component, implements
 from trac.config import ListOption, Option
 from trac.util.datefmt import format_date, format_datetime, get_timezone
 from trac.util.text import wrap
-from trac.ticket.api import ITicketChangeListener
+from trac.ticket.api import TicketSystem, ITicketChangeListener
 from trac.wiki.api import IWikiChangeListener
 
 try:
@@ -44,9 +44,9 @@ class LetschatTicketNotifcationModule(Component):
     token = Option('letschat', 'token', '',
                    doc="Authentication Token for let's chat")
     room = Option('letschat', 'ticket_room', '',
-                         doc="room name on let's chat")
-    fields = Option('letschat', 'ticket_fields', 'type,priority,component,resolution',
-                           doc="Fields that should be reported")
+                  doc="room name on let's chat")
+    ticket_fields = Option('letschat', 'ticket_fields', 'type,priority,component,resolution',
+                    doc="Fields that should be reported")
 
     def _prepare_ticket_values(self, ticket):
         values = ticket.values.copy()
@@ -88,13 +88,16 @@ class LetschatTicketNotifcationModule(Component):
 
         text += u'\n'
 
+        fields = TicketSystem(self.env).get_ticket_fields()
+        fields = dict((f['name'], f) for f in fields)
         for k, v in values.get('attrib', {}).items():
-            text += u' * ' + k.title() + u': {}\n'.format(v)
+            text += u' * {field}: {value}\n'.format(field=fields[k].get('label', k.title()),
+                                                    value=v)
 
         if (('changes' in values) and (len(values.get('changes', {})) > 0)):
             text += u'Changes (by {})\n'.format(values['author'])
             for k, v in values.get('changes', {}).items():
-                text += u' * ' + k.title() + u': '
+                text += u' * {field}: '.format(field=fields[k].get('label', k.title()))
                 if k in ('description', 'comment'):
                     text += u'see below\n'
                 else:
@@ -154,7 +157,7 @@ class LetschatTicketNotifcationModule(Component):
                 text += u'<<Comment>>\n' + comment_diff[2:] + u'\n'
 
         text += u'Ticket URL: {url}\n'.format(**values)
-        if ('cc' in values):
+        if ('cc' in values) and (len(values['cc']) > 0):
             cc = u''
             for mentor in values['cc'].split(', '):
                 if mentor.lower() != values.get('author').lower():
@@ -162,13 +165,14 @@ class LetschatTicketNotifcationModule(Component):
                         cc += mentor
                     else:
                         cc = ', '.join([cc, mentor])
-            
+
             cc = re.sub(r'([0-9a-z]+)', r'@\1', cc)
             text += u'Cc: {}\n'.format(cc)
 
         #room = self.detect_room(values) or self.room
         room = self.room
 
+        self.env.log.info('notify: {}'.format(text))
         try:
             requests.post(self.webapi + '/' + room + '/messages',
                           data = { 'text': text },
@@ -192,7 +196,7 @@ class LetschatTicketNotifcationModule(Component):
     def ticket_created(self, ticket):
         values = self._prepare_ticket_values(ticket)
         values['author'] = values['reporter']
-        fields = self.fields.split(',')
+        fields = self.ticket_fields.split(',')
         attrib = {}
 
         for field in fields:
@@ -229,7 +233,7 @@ class LetschatTicketNotifcationModule(Component):
 
         del values['description']
 
-        fields = self.fields.split(',')
+        fields = self.ticket_fields.split(',')
         changes = {}
 
         for field in fields:
@@ -415,6 +419,7 @@ class LetschatBlogNotifcationModule(Component):
 
         room = self.room
 
+        self.env.log.info('notify: {}'.format(text))
         try:
             requests.post(self.webapi + '/' + room + '/messages',
                           data = { 'text': text },
@@ -432,7 +437,7 @@ class LetschatBlogNotifcationModule(Component):
 
         bp = BlogPost(self.env, postname, version)
         values = {}
-        values['url'] = 'http://10.75.13.152/trac/blog/{}'.format(postname)
+        values['url'] = '{}/blog/{}'.format(self.env.abs_href(), postname)
         values['title'] = bp.title
         values['name'] = bp.name
         values['author'] = bp.version_author
@@ -449,7 +454,7 @@ class LetschatBlogNotifcationModule(Component):
         bp = BlogPost(self.env, postname, 0)
         bc = BlogComment(self.env, postname, number)
         values = {}
-        values['url'] = 'http://10.75.13.152/trac/blog/{}'.format(postname)
+        values['url'] = '{}/blog/{}'.format(self.env.abs_href(), postname)
         values['title'] = bp.title
         values['name'] = bp.name
         values['author'] = bc.author

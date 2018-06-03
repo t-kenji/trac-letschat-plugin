@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='LetschatNotificationPlugin',
-    version='0.9',
+    version='0.9.1',
     description='Plugin to announce Trac changes in Lets Chat',
     author='Takahashi Kenji',
     url='https://github.com/t-kenji/trac-letschat-plugin',
@@ -16,6 +16,8 @@ setup(
         'Trac',
     ],
     entry_points={
-        'trac.plugins': 'letschat_notification = letschat_notification'
+        'trac.plugins': [
+            'letschat_notification = letschat_notification'
+        ]
     }
 )
