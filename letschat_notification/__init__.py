@@ -247,9 +247,10 @@ class LetschatTicketNotifcationModule(Component):
                     new_val = ticket[field]
                 changes[field] = (old_val, new_val)
 
-        values['changes'] = changes
+        if len(changes) > 0:
+            values['changes'] = changes
 
-        self._ticket_notify('edit', values)
+            self._ticket_notify('edit', values)
 
     def ticket_deleted(self, ticket):
         pass
