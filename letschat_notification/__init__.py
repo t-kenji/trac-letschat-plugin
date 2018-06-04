@@ -172,7 +172,6 @@ class LetschatTicketNotifcationModule(Component):
         #room = self.detect_room(values) or self.room
         room = self.room
 
-        self.env.log.info('notify: {}'.format(text))
         try:
             requests.post(self.webapi + '/' + room + '/messages',
                           data = { 'text': text },
@@ -199,8 +198,9 @@ class LetschatTicketNotifcationModule(Component):
         fields = self.ticket_fields.split(',')
         attrib = {}
 
+        fields.remove('description')
         for field in fields:
-            if ticket[field] != '':
+            if (ticket[field] is not None) and (ticket[field] != ''):
                 if field in ticket.time_fields:
                     date_type = ticket.fields.by_name(field).get('format')
                     val = self._format_date_field(ticket[field], date_type, '%Y/%m/%d')
@@ -419,7 +419,6 @@ class LetschatBlogNotifcationModule(Component):
 
         room = self.room
 
-        self.env.log.info('notify: {}'.format(text))
         try:
             requests.post(self.webapi + '/' + room + '/messages',
                           data = { 'text': text },
