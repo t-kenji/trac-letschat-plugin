@@ -91,13 +91,13 @@ class LetschatTicketNotifcationModule(Component):
         fields = TicketSystem(self.env).get_ticket_fields()
         fields = dict((f['name'], f) for f in fields)
         for k, v in values.get('attrib', {}).items():
-            text += u' * {field}: {value}\n'.format(field=fields[k].get('label', k.title()),
+            text += u' * {field}: {value}\n'.format(field=fields.get(k, {}).get('label', k.title()),
                                                     value=v)
 
         if (('changes' in values) and (len(values.get('changes', {})) > 0)):
             text += u'Changes (by {})\n'.format(values['author'])
             for k, v in values.get('changes', {}).items():
-                text += u' * {field}: '.format(field=fields[k].get('label', k.title()))
+                text += u' * {field}: '.format(field=fields.get(k, {}).get('label', k.title()))
                 if k in ('description', 'comment'):
                     text += u'see below\n'
                 else:
