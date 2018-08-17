@@ -18,6 +18,10 @@ try:
 except:
     IBlogChangeListener = None
 
+try:
+    from tracjanusgateway.api import IVideocallListener
+except:
+    IVideocallListener = None
 
 def diff_cleanup(gen):
     """
@@ -174,9 +178,9 @@ class LetschatTicketNotifcationModule(Component):
 
         try:
             requests.post(self.webapi + '/' + room + '/messages',
-                          data = { 'text': text },
-                          auth = ( self.token, 'dummy' ),
-                          timeout = 1.0)
+                          data={'text': text},
+                          auth=(self.token, 'dummy'),
+                          timeout=1.0)
         except requests.exceptions.RequestException:
             return False
         return True
@@ -324,9 +328,9 @@ class LetschatWikiNotifcationModule(Component):
 
         try:
             requests.post(self.webapi + '/' + room + '/messages',
-                          data = { 'text': text },
-                          auth = ( self.token, 'dummy' ),
-                          timeout = 1.0)
+                          data={'text': text},
+                          auth=(self.token, 'dummy'),
+                          timeout=1.0)
         except requests.exceptions.RequestException:
             return False
         return True
@@ -376,7 +380,7 @@ class LetschatBlogNotifcationModule(Component):
     room = Option('letschat', 'blog_room', '',
                   doc="room name on let's chat")
 
-    def blog_notify(self, action, values):
+    def _blog_notify(self, action, values):
         values['author'] = values['author'].title()
 
         text = ''
@@ -422,9 +426,9 @@ class LetschatBlogNotifcationModule(Component):
 
         try:
             requests.post(self.webapi + '/' + room + '/messages',
-                          data = { 'text': text },
-                          auth = ( self.token, 'dummy' ),
-                          timeout = 1.0)
+                          data={'text': text},
+                          auth=(self.token, 'dummy'),
+                          timeout=1.0)
         except requests.exceptions.RequestException:
             return False
         return True
@@ -445,7 +449,7 @@ class LetschatBlogNotifcationModule(Component):
         if len(bp.version_comment) > 0:
             values['comment'] = bp.version_comment
 
-        self.blog_notify(action, values)
+        self._blog_notify(action, values)
 
     def blog_post_deleted(self, postname, version, fields):
         pass
@@ -459,7 +463,50 @@ class LetschatBlogNotifcationModule(Component):
         values['name'] = bp.name
         values['author'] = bc.author
         values['comment'] = bc.comment
-        self.blog_notify('edit', values)
+        self._blog_notify('edit', values)
 
     def blog_comment_deleted(self, postname, number, fields):
         pass
+
+class LetschatJanusgwNotificationModule(Component):
+    """
+    """
+
+    if IVideocallListener:
+        implements(IVideocallListener)
+
+    webapi = Option('letschat', 'webapi', '',
+                    doc="REST-like API for let's chat")
+    token = Option('letschat', 'token', '',
+                   doc="Authentication Token for let's chat")
+    room = Option('letschat', 'janusgw_room', '',
+                  doc="room name on let's chat")
+
+    def _videocall_notify(self, event, values):
+        text = ''
+        if event == 'missedcall':
+            text += 'Missed call from {caller} to @{callee}.'.format(**values)
+
+        if 'comment' in values:
+            text += u'\n<<Comment>>\n{}'.format(values.get('comment'))
+
+        room = self.room
+
+        try:
+            requests.post(self.webapi + '/' + room + '/messages',
+                          data={'text': text},
+                          auth=(self.token, 'dummy'),
+                          timeout=1.0)
+        except requests.exceptions.RequestException:
+            return False
+        return True
+
+    def videocall_missedcall(self, callee, caller, comment):
+        values = {
+            'callee': callee,
+            'caller': caller,
+        }
+        if comment and len(comment) > 0:
+            values['comment'] = comment
+
+        self._videocall_notify('missedcall', values)
