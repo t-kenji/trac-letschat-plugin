@@ -50,7 +50,7 @@ class LetschatTicketNotifcationModule(Component):
     room = Option('letschat', 'ticket_room', '',
                   doc="room name on let's chat")
     ticket_fields = Option('letschat', 'ticket_fields', 'type,priority,component,resolution',
-                    doc="Fields that should be reported")
+                           doc="Fields that should be reported")
 
     def _prepare_ticket_values(self, ticket):
         values = ticket.values.copy()
@@ -173,7 +173,7 @@ class LetschatTicketNotifcationModule(Component):
             cc = re.sub(r'([0-9a-z]+)', r'@\1', cc)
             text += u'Cc: {}\n'.format(cc)
 
-        #room = self.detect_room(values) or self.room
+        #room = self._detect_room(values) or self.room
         room = self.room
 
         try:
@@ -185,7 +185,7 @@ class LetschatTicketNotifcationModule(Component):
             return False
         return True
 
-    def detect_room(self, values):
+    def _detect_room(self, values):
         if values.get('milestone'):
             if 'yourfirm' in values['milestone'].lower():
                 room_name = 'yourfirm'
@@ -202,7 +202,9 @@ class LetschatTicketNotifcationModule(Component):
         fields = self.ticket_fields.split(',')
         attrib = {}
 
-        fields.remove('description')
+        if 'description' in fields:
+            fields.remove('description')
+
         for field in fields:
             if (ticket[field] is not None) and (ticket[field] != ''):
                 if field in ticket.time_fields:
@@ -294,7 +296,7 @@ class LetschatWikiNotifcationModule(Component):
         values['url'] = self.env.abs_href.wiki(page.name)
         return values
 
-    def wiki_notify(self, action, values):
+    def _wiki_notify(self, action, values):
         text = ''
         add_author = False
         if action == 'new':
@@ -342,7 +344,7 @@ class LetschatWikiNotifcationModule(Component):
         if (len(comment) > 0):
             values['comment'] = comment
 
-        self.wiki_notify('new', values)
+        self._wiki_notify('new', values)
 
     def wiki_page_changed(self, page, version, time, comment, author, ipnr):
         values = self._prepare_wiki_values(page)
@@ -355,7 +357,7 @@ class LetschatWikiNotifcationModule(Component):
         changes['changeset'] = self.env.abs_href.wiki(page.name, action='diff', version=version)
         values['changes'] = changes
 
-        self.wiki_notify('edit', values)
+        self._wiki_notify('edit', values)
 
     def wiki_page_deleted(self, page):
         pass
