@@ -253,7 +253,7 @@ class LetschatTicketNotifcationModule(Component):
                     new_val = ticket[field]
                 changes[field] = (old_val, new_val)
 
-        if len(changes) > 0:
+        if (len(changes) > 0) or ('comment' in values):
             values['changes'] = changes
 
             self._ticket_notify('edit', values)
